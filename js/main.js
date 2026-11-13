@@ -94,6 +94,26 @@
   addEventListener('scroll', onScroll, { passive: true });
   onScroll();
 
+  /* ── los puntos del logo en Ubicación: cada uno se traza y luego se rellena ── */
+  var mdots = $('#mapa-dots');
+  if (mdots) {
+    var circles = $$('circle', mdots), sec = $('#ubicacion'), mticking = false;
+    var drawDots = function () {
+      mticking = false;
+      var r = sec.getBoundingClientRect();
+      // 0 cuando la sección asoma abajo, 1 cuando su título llega al tercio superior
+      var p = Math.min(1, Math.max(0, (innerHeight - r.top) / (innerHeight * .72)));
+      circles.forEach(function (c, i) {
+        var k = Math.min(1, Math.max(0, p * 11 - i));
+        c.style.setProperty('--k', Math.min(1, k * 1.6).toFixed(3));
+        c.style.setProperty('--f', Math.max(0, k * 2.2 - 1.2).toFixed(3));
+      });
+    };
+    addEventListener('scroll', function () { if (!mticking) { mticking = true; requestAnimationFrame(drawDots); } }, { passive: true });
+    addEventListener('resize', drawDots);
+    drawDots();
+  }
+
   /* ── apariciones ── */
   if ('IntersectionObserver' in window) {
     var rio = new IntersectionObserver(function (es) {

@@ -164,10 +164,14 @@ section[id] { scroll-margin-top: 70px; }
 
 /* ── mapa (460px a todo el ancho, como Casa Panza) ── */
 .mapa { padding-top: 32px; border-top: 1px solid var(--line); }
-.mapa__hd { display: flex; align-items: flex-end; justify-content: space-between; gap: 24px; }
+.mapa__hd { position: relative; display: flex; align-items: flex-end; justify-content: space-between; gap: 24px; }
 .mapa__link { display: inline-flex; align-items: center; gap: 10px; margin-bottom: 20px; font-family: var(--f-t); font-size: 14px; letter-spacing: .06em; border-bottom: 1px solid var(--wood); padding-bottom: 4px; }
 .mapa__link:hover { color: var(--wood); }
 .mapa__frame { line-height: 0; }
+/* los nueve puntos del logo se dibujan con el scroll (absolutos: no cambian la altura) */
+.mapa__dots { position: absolute; left: 50%; top: 50%; width: 74px; height: auto; transform: translate(-50%, -62%); overflow: visible; pointer-events: none; }
+.mapa__dots circle { --k: 0; --f: 0; fill: var(--ink); fill-opacity: var(--f); stroke: var(--ink); stroke-width: 2.4; stroke-dasharray: 1; stroke-dashoffset: calc(1 - var(--k)); transform-box: fill-box; transform-origin: center; transform: scale(calc(.82 + var(--f) * .18)); }
+.mapa__dots circle:last-child { fill: var(--wood); stroke: var(--wood); }
 .mapa__frame iframe { width: 100%; max-width: none; height: 460px; border: 0; filter: saturate(.9); }
 
 /* ── reservas ── */
@@ -243,6 +247,7 @@ section[id] { scroll-margin-top: 70px; }
   .sec-hd--row, .mapa__hd { flex-direction: column; align-items: flex-start; gap: 4px; }
   .btn-line { margin-bottom: 8px; }
   .mapa__link { margin-bottom: 14px; }
+  .mapa__dots { left: auto; right: var(--gutter); top: 26px; width: 58px; transform: none; }
   .mapa__frame iframe { height: 340px; }
   .stats { gap: 26px; }
   .stats dt { font-size: 38px; }
