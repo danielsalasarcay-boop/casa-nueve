@@ -28,7 +28,7 @@
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Instrument+Serif:ital@0;1&family=Albert+Sans:wght@300;400;500;600&family=Special+Elite&display=swap" rel="stylesheet">
 <link rel="modulepreload" href="https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js" crossorigin>
-<link rel="stylesheet" href="css/styles.css?v=3">
+<link rel="stylesheet" href="css/styles.css?v=5">
 
 <script type="application/ld+json">
 {
@@ -88,7 +88,7 @@
     <a href="galeria.html" data-es="Galería" data-en="Gallery">Galería</a>
     <a href="#ubicacion" data-es="Ubicación" data-en="Location">Ubicación</a>
   </nav>
-  <div class="lang" role="group" aria-label="Idioma / Language"><button data-lang="es" class="active">ES</button><button data-lang="en">EN</button></div>
+  <div class="lang" role="group" aria-label="Idioma / Language"><span class="lang__knob" aria-hidden="true"></span><button data-lang="es" class="active" aria-pressed="true">ES</button><button data-lang="en" aria-pressed="false">EN</button></div>
   <a class="header__cta" data-wa target="_blank" rel="noopener noreferrer"><svg width="15" height="15" aria-hidden="true"><use href="#i-wa"/></svg><span data-es="Reservar" data-en="Book">Reservar</span></a>
 </header>
 
@@ -166,7 +166,7 @@
         <p class="s-label rv" data-es="Galería" data-en="Gallery">Galería</p>
         <h2 class="s-title rv" data-html data-es="Así se vive <em>Casa Nueve</em>" data-en="Life at <em>Casa Nueve</em>">Así se vive <em>Casa Nueve</em></h2>
       </div>
-      <a href="galeria.html" class="btn btn-line rv"><span data-es="Ver todas las fotos" data-en="See all photos">Ver todas las fotos</span><span class="arr" aria-hidden="true">→</span></a>
+      <a href="galeria.html" class="btn-gal rv"><span class="btn__roll"><span data-es="Ver galería de fotos" data-en="View photo gallery">Ver galería de fotos</span><span aria-hidden="true" data-es="Ver galería de fotos" data-en="View photo gallery">Ver galería de fotos</span></span></a>
     </div>
     <div class="strip">
       <button class="strip__it strip__it--video rv" id="video-btn" aria-label="Ver el recorrido en video">
@@ -205,7 +205,7 @@
       <p class="s-label rv" data-es="Ubicación" data-en="Location">Ubicación</p>
       <h2 class="s-title rv" data-es="Dónde estamos" data-en="Where we are">Dónde estamos</h2>
     </div>
-    <svg class="mapa__dots" id="mapa-dots" viewBox="-4 -4 238 168" aria-hidden="true"><circle cx="20" cy="20" r="17" pathLength="1" style="--i:0"/><circle cx="80" cy="20" r="17" pathLength="1" style="--i:1"/><circle cx="140" cy="20" r="17" pathLength="1" style="--i:2"/><circle cx="140" cy="80" r="17" pathLength="1" style="--i:3"/><circle cx="140" cy="140" r="17" pathLength="1" style="--i:4"/><circle cx="80" cy="140" r="17" pathLength="1" style="--i:5"/><circle cx="20" cy="140" r="17" pathLength="1" style="--i:6"/><circle cx="20" cy="80" r="17" pathLength="1" style="--i:7"/><circle cx="210" cy="140" r="17" pathLength="1" style="--i:8"/></svg>
+    <svg class="mapa__dots" id="mapa-dots" viewBox="-4 -4 238 168" aria-hidden="true"><path class="md-line" d="M140,80 L140,20 L80,20 L20,20 L20,80 L20,140 L80,140 L140,140 L210,140" pathLength="1"/><circle cx="140" cy="80" r="17" pathLength="1" data-u="0.0000"/><circle cx="140" cy="20" r="17" pathLength="1" data-u="0.1224"/><circle cx="80" cy="20" r="17" pathLength="1" data-u="0.2449"/><circle cx="20" cy="20" r="17" pathLength="1" data-u="0.3673"/><circle cx="20" cy="80" r="17" pathLength="1" data-u="0.4898"/><circle cx="20" cy="140" r="17" pathLength="1" data-u="0.6122"/><circle cx="80" cy="140" r="17" pathLength="1" data-u="0.7347"/><circle cx="140" cy="140" r="17" pathLength="1" data-u="0.8571"/><circle cx="210" cy="140" r="17" pathLength="1" data-u="1.0000"/></svg>
     <a class="mapa__link rv" href="https://maps.app.goo.gl/PoWs2PusiboBBGa19" target="_blank" rel="noopener noreferrer"><span data-es="Madrisqui, Archipiélago Los Roques" data-en="Madrisqui, Los Roques Archipelago">Madrisqui, Archipiélago Los Roques</span><span class="arr" aria-hidden="true">↗</span></a>
   </div>
   <div class="mapa__frame">
@@ -254,7 +254,7 @@
 </div>
 
 <script src="js/fotos.js?v=1"></script>
-<script src="js/main.js?v=3"></script>
+<script src="js/main.js?v=5"></script>
 <script type="module" src="js/nueve.js?v=5"></script>
 </body>
 </html>

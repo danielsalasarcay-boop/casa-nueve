@@ -14,13 +14,17 @@
       var v = el.getAttribute('data-' + lang);
       if (el.hasAttribute('data-html')) el.innerHTML = v; else el.textContent = v;
     });
-    $$('.lang button').forEach(function (b) { b.classList.toggle('active', b.dataset.lang === lang); });
+    $$('.lang button').forEach(function (b) { var on = b.dataset.lang === lang; b.classList.toggle('active', on); b.setAttribute('aria-pressed', on); });
+    $$('.lang').forEach(function (l) { l.classList.toggle('is-en', lang === 'en'); });
     var href = 'https://wa.me/' + N.wa + '?text=' + encodeURIComponent(N.waMsg[lang]);
     $$('[data-wa]').forEach(function (a) { a.href = href; });
     try { localStorage.setItem('lang', lang); } catch (e) {}
     D.dispatchEvent(new CustomEvent('langchange'));
   }
-  D.addEventListener('click', function (e) { var b = e.target.closest('.lang button'); if (b) setLang(b.dataset.lang); });
+  D.addEventListener('click', function (e) {
+    var b = e.target.closest('.lang button'); if (b) { setLang(b.dataset.lang); return; }
+    if (e.target.closest('.lang')) setLang(lang === 'en' ? 'es' : 'en'); // tocar el interruptor lo cambia
+  });
   setLang(lang);
 
   /* ── pantalla de carga ── */
@@ -94,24 +98,39 @@
   addEventListener('scroll', onScroll, { passive: true });
   onScroll();
 
-  /* ── los puntos del logo en Ubicación: cada uno se traza y luego se rellena ── */
+  /* ── los puntos del logo en Ubicación: una línea de lápiz los va uniendo con el scroll,
+        cada punto se traza y se rellena cuando la línea llega a él; al final la línea se retira ── */
   var mdots = $('#mapa-dots');
   if (mdots) {
-    var circles = $$('circle', mdots), sec = $('#ubicacion'), mticking = false;
-    var drawDots = function () {
-      mticking = false;
-      var r = sec.getBoundingClientRect();
-      // 0 cuando la sección asoma abajo, 1 cuando su título llega al tercio superior
-      var p = Math.min(1, Math.max(0, (innerHeight - r.top) / (innerHeight * .72)));
+    var circles = $$('circle', mdots), mline = $('.md-line', mdots), sec = $('#ubicacion');
+    var us = circles.map(function (c) { return +c.dataset.u; });
+    var cur = -1, goal = 0, raf2 = 0, RM = matchMedia('(prefers-reduced-motion: reduce)').matches;
+    var target2 = function () {
+      var r = $('.mapa__hd').getBoundingClientRect();
+      // empieza cuando el título asoma (88 % de la pantalla) y termina al llegar al 38 %
+      goal = Math.min(1, Math.max(0, (innerHeight * .88 - r.top) / (innerHeight * .5)));
+      if (RM) goal = goal > 0 ? 1 : 0;
+    };
+    var paint = function (p) {
+      var line = Math.min(1, p / .8);
+      mline.style.setProperty('--l', line.toFixed(4));
+      mline.style.setProperty('--lo', (.7 * (1 - Math.max(0, (p - .86) / .14))).toFixed(3));
       circles.forEach(function (c, i) {
-        var k = Math.min(1, Math.max(0, p * 11 - i));
-        c.style.setProperty('--k', Math.min(1, k * 1.6).toFixed(3));
-        c.style.setProperty('--f', Math.max(0, k * 2.2 - 1.2).toFixed(3));
+        var k = Math.min(1, Math.max(0, (p / .8 - us[i] + .02) * 7 + (i === 0 ? .3 : 0)));
+        c.style.setProperty('--k', Math.min(1, k * 1.7).toFixed(3));
+        c.style.setProperty('--f', Math.max(0, k * 2 - 1).toFixed(3));
       });
     };
-    addEventListener('scroll', function () { if (!mticking) { mticking = true; requestAnimationFrame(drawDots); } }, { passive: true });
-    addEventListener('resize', drawDots);
-    drawDots();
+    var tick = function () {
+      raf2 = 0;
+      cur += (goal - cur) * .12;
+      if (Math.abs(goal - cur) < .0008) cur = goal; else raf2 = requestAnimationFrame(tick);
+      paint(cur);
+    };
+    var kick = function () { target2(); if (!raf2) raf2 = requestAnimationFrame(tick); };
+    addEventListener('scroll', kick, { passive: true });
+    addEventListener('resize', kick);
+    target2(); cur = goal; paint(cur);
   }
 
   /* ── apariciones ── */
