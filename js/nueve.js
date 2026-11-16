@@ -22,18 +22,18 @@ try {
 renderer.setPixelRatio(Math.min(devicePixelRatio, SMALL ? 2 : 1.75));
 renderer.outputColorSpace = THREE.SRGBColorSpace;
 renderer.toneMapping = THREE.ACESFilmicToneMapping;
-renderer.toneMappingExposure = 1.12;
+renderer.toneMappingExposure = 1.0;
 renderer.setClearColor(0xffffff, 0);
 
 const scene = new THREE.Scene();
 const pmrem = new THREE.PMREMGenerator(renderer);
 scene.environment = pmrem.fromScene(new RoomEnvironment(renderer), 0.03).texture;
-scene.environmentIntensity = .55;
+scene.environmentIntensity = .42;
 
 const camera = new THREE.PerspectiveCamera(28, 1, 0.1, 50);
 camera.position.set(0, 0, 7.4);
 
-const key = new THREE.DirectionalLight(0xfff0dc, 2.1);
+const key = new THREE.DirectionalLight(0xfff0dc, 1.9);
 key.position.set(-3.5, 3.5, 5);
 scene.add(key);
 const fill = new THREE.DirectionalLight(0xe9f4f4, .45);
@@ -42,6 +42,8 @@ scene.add(fill);
 const rim = new THREE.DirectionalLight(0xfff1e2, .7);
 rim.position.set(2, 3, -4);
 scene.add(rim);
+const glow = new THREE.PointLight(0xffe9d2, 0, 9, 1.6);
+scene.add(glow);
 
 /* ───────── Forma ───────── */
 const toV = arr => { const o = []; for (let i = 0; i < arr.length; i += 2) o.push(new THREE.Vector2(arr[i], arr[i + 1])); return o; };
@@ -51,7 +53,7 @@ SHAPE.holes.push(new THREE.Path(toV(OJO)));
 const DEPTH = .16;
 const geo = new THREE.ExtrudeGeometry(SHAPE, {
   depth: DEPTH, steps: 1, bevelEnabled: true,
-  bevelThickness: .014, bevelSize: .012, bevelSegments: 5,
+  bevelThickness: .03, bevelSize: .026, bevelOffset: -.026, bevelSegments: 10,
 });
 geo.translate(0, 0, -DEPTH / 2);
 
@@ -65,38 +67,61 @@ const tex = (url, srgb) => new Promise(res => loader.load(url, t => {
   t.repeat.set(.4524, .475); t.offset.set(.5, .4962);
   res(t);
 }, undefined, () => res(null)));
-const [woodMap, woodBump] = await Promise.all([tex('img/madera-9.jpg?v=4', true), tex('img/madera-9-relieve.jpg?v=3', false)]);
-const sideMap = woodMap ? woodMap.clone() : null;
-if (sideMap) { sideMap.needsUpdate = true; sideMap.repeat.set(.6, 4); sideMap.offset.set(.2, 0); sideMap.wrapS = sideMap.wrapT = THREE.MirroredRepeatWrapping; }
+const [woodMap, woodBump] = await Promise.all([tex('img/madera-9.jpg?v=6', true), tex('img/madera-9-relieve.jpg?v=6', false)]);
 
-/* La madera aparece poco a poco, subiendo por la veta, con un borde más oscuro
-   como madera recién aceitada. uReveal: 0 → nada, 1 → todo. */
+/* Las vetas del boceto: las mismas líneas que dibuja el lápiz son las que luego
+   se abren en madera. */
+let seed = 3;
+const r1 = () => ((seed = (seed * 16807) % 2147483647) / 2147483647);
+const NG = 11;
+const GRAIN = Array.from({ length: NG }, (_, k) => new THREE.Vector4(-.86 + k * .17 + (r1() - .5) * .05, .014 + r1() * .02, 1.6 + r1() * 2, r1() * 6));
+const grainX = (g, y) => g.x + y * .12 + Math.sin(y * g.z + g.w) * g.y + Math.sin(y * 11 + g.w) * .004;
+
+/* La madera nace de cada veta dibujada y se va abriendo hacia los lados hasta
+   cubrir la pieza, con un borde más oscuro como aceite recién pasado.
+   uReveal: 0 → nada, 1 → todo. */
 const uReveal = { value: REDUCED ? 1 : 0 };
+const uGrain = { value: GRAIN };
 const revealize = (mat, isSide = false) => {
+  mat.alphaToCoverage = true;
   mat.onBeforeCompile = sh => {
     sh.uniforms.uReveal = uReveal;
-    sh.vertexShader = 'varying vec3 vObjPos;\n' + sh.vertexShader.replace('#include <begin_vertex>', '#include <begin_vertex>\n vObjPos = position;');
-    sh.fragmentShader = `uniform float uReveal; varying vec3 vObjPos;
+    sh.uniforms.uGrain = uGrain;
+    sh.vertexShader = 'varying vec3 vObjPos; varying vec3 vObjN;\n' + sh.vertexShader.replace('#include <begin_vertex>', '#include <begin_vertex>\n vObjPos = position; vObjN = normal;');
+    sh.fragmentShader = `uniform float uReveal; uniform vec4 uGrain[${NG}]; varying vec3 vObjPos; varying vec3 vObjN;
 float h21(vec2 p){ return fract(sin(dot(p, vec2(127.1, 311.7))) * 43758.5453); }
 float vn(vec2 p){ vec2 i = floor(p), f = fract(p); f = f * f * (3. - 2. * f);
   return mix(mix(h21(i), h21(i + vec2(1, 0)), f.x), mix(h21(i + vec2(0, 1)), h21(i + vec2(1, 1)), f.x), f.y); }
 float fbm(vec2 p){ float a = .5, s = 0.; for (int i = 0; i < 4; i++) { s += a * vn(p); p *= 2.03; a *= .5; } return s; }
 ` + sh.fragmentShader.replace('#include <map_fragment>', `#include <map_fragment>
-  float front = (vObjPos.y + 1.0) / 2.0 * .82 + (vObjPos.x + 1.0) / 2.0 * .18;
-  float nn = fbm(vObjPos.xy * vec2(2.6, 1.2) + 3.7) * .2;
-  float m = uReveal * 1.26 - (front + nn);
-  if (m < 0.0) discard;
-  if (m < .012 && h21(gl_FragCoord.xy) > m / .012) discard;
-  float stain = 1.0 - smoothstep(0.0, .09, m);
-  diffuseColor.rgb = mix(diffuseColor.rgb, diffuseColor.rgb * vec3(.52, .4, .32), stain * .85);` + (isSide ? `
-  // dentro del ojo y de la ranura la madera queda cruda y más clara, como en la pieza
   vec2 q = vObjPos.xy;
+` + (isSide ? `
+  // canto: la veta de la cara atraviesa el grosor de la tabla
+  vec4 across = texture2D(map, q * vec2(.4524, .475) + vec2(.5, .4962) + vec2(.004, .002) * sin(vObjPos.z * 40.0));
+  diffuseColor.rgb = across.rgb * mix(vec3(.74, .68, .64), vec3(1.0), smoothstep(.6, 1.0, abs(vObjN.z)));` : '') + `
+  float lum = dot(diffuseColor.rgb, vec3(.3, .55, .15));
+  float gd = 9.0;
+  for (int i = 0; i < ${NG}; i++) { vec4 g = uGrain[i];
+    float d = abs(q.x - (g.x + q.y * .12 + sin(q.y * g.z + g.w) * g.y + sin(q.y * 11.0 + g.w) * .004));
+    // cada veta arranca a su tiempo y se abre a su ritmo: pinceladas, no barras
+    gd = min(gd, smoothstep(0.0, .1 + .05 * fract(g.w * 3.3), d) * .34 + fract(g.w * 1.7) * .2); }
+  float T = gd + (1.0 - q.y) * .5 * .5
+    + (fbm(q * vec2(9.0, 1.3) + 3.7) - .5) * .12` + (isSide ? '' : ` + (.22 - lum) * .12`) + `;
+  float m = uReveal * 1.36 - T - .05;
+  if (m < 0.0) discard;
+  diffuseColor.a = smoothstep(0.0, max(fwidth(m) * 1.6, 1e-4), m);
+  float stain = 1.0 - smoothstep(0.0, .07, m);
+  diffuseColor.rgb = mix(diffuseColor.rgb, diffuseColor.rgb * vec3(.5, .38, .3), stain * .8);` + (isSide ? `
+  // dentro del ojo y de la ranura sigue siendo la misma madera, algo más en sombra
   float inEye = (1.0 - smoothstep(.2, .26, abs(q.x - .147))) * (1.0 - smoothstep(.1, .14, abs(q.y - .345)));
   float inSlot = (1.0 - smoothstep(.24, .28, abs(q.x - .075))) * (1.0 - smoothstep(.09, .12, abs(q.y + .36)));
   float raw = max(inEye, inSlot);
-  vec3 rawWood = vec3(.5, .32, .2) * (.86 + .28 * fbm(q * vec2(4.0, 40.0) + vObjPos.z * 9.0));
-  diffuseColor.rgb = mix(diffuseColor.rgb, rawWood, raw * .8);` : '')).replace('#include <roughnessmap_fragment>', '#include <roughnessmap_fragment>' + (isSide ? `
-  roughnessFactor = mix(roughnessFactor, .95, raw);` : ''));
+  diffuseColor.rgb *= 1.0 - .3 * raw;` : `
+  // poro fino de la madera, para que de cerca siga siendo nítida
+  float pore = vn(q * vec2(150.0, 11.0) + vec2(q.y * 18.0, 0.0));
+  diffuseColor.rgb *= 1.0 - .07 * smoothstep(.55, .95, pore);`)).replace('#include <roughnessmap_fragment>', '#include <roughnessmap_fragment>' + (isSide ? `` : `
+  // la veta oscura bebe más aceite: brilla menos que la clara
+  roughnessFactor = clamp(roughnessFactor + (.2 - lum) * .5, .28, .8);`));
   };
   return mat;
 };
@@ -107,21 +132,19 @@ group.add(piece);
 scene.add(group);
 
 const front = revealize(new THREE.MeshPhysicalMaterial({
-  map: woodMap, bumpMap: woodBump, bumpScale: .75,
-  roughness: .5, clearcoat: .5, clearcoatRoughness: .2,
+  map: woodMap, bumpMap: woodBump, bumpScale: .45,
+  roughness: .5, clearcoat: .32, clearcoatRoughness: .22,
 }));
 const side = revealize(new THREE.MeshPhysicalMaterial({
-  map: sideMap, color: 0xa87657, roughness: .6, clearcoat: .12, clearcoatRoughness: .5,
+  map: woodMap, roughness: .56, clearcoat: .22, clearcoatRoughness: .3,
 }), true);
 const nine = new THREE.Mesh(geo, [front, side]);
-nine.scale.z = .06;
+nine.scale.z = .05;
 piece.add(nine);
 
-/* boceto: trazos finos, como un dibujo a lápiz */
-const zf = DEPTH / 2 + .02;
+/* boceto: trazos finos, como un plano a lápiz */
+const zf = DEPTH / 2 + .012;
 const strokes = [];
-let seed = 3;
-const r1 = () => ((seed = (seed * 16807) % 2147483647) / 2147483647);
 const pressure = (g, n, base = .55) => {
   // el lápiz no pesa igual en todo el trazo: suave al empezar, más firme al medio
   const col = new Float32Array(n * 4), ph = r1() * 6, ph2 = r1() * 6;
@@ -132,54 +155,69 @@ const pressure = (g, n, base = .55) => {
   }
   g.setAttribute('color', new THREE.BufferAttribute(col, 4));
 };
-const stroke = (pts, color, op, from, to, loop = true, segs = false) => {
+const plan = new THREE.Group();    // guías del plano: no giran con la pieza
+group.add(plan);
+const stroke = (pts, color, op, from, to, o = {}) => {
   const mat = new THREE.LineBasicMaterial({ color, transparent: true, opacity: op, vertexColors: true, depthWrite: false });
-  const g = new THREE.BufferGeometry().setFromPoints(pts.map(p => new THREE.Vector3(p.x, p.y, zf)));
-  pressure(g, pts.length);
-  const l = segs ? new THREE.LineSegments(g, mat) : loop ? new THREE.LineLoop(g, mat) : new THREE.Line(g, mat);
+  const g = new THREE.BufferGeometry().setFromPoints(pts.map(p => new THREE.Vector3(p.x, p.y, o.guide ? 0 : zf)));
+  pressure(g, pts.length, o.guide ? .8 : .55);
+  const l = o.segs ? new THREE.LineSegments(g, mat) : o.loop ? new THREE.LineLoop(g, mat) : new THREE.Line(g, mat);
   g.setDrawRange(0, 0);
-  l.userData = { n: pts.length, from, to, op };
-  piece.add(l); strokes.push(l);
+  l.userData = { n: pts.length, from, to, op, guide: !!o.guide, segs: !!o.segs };
+  (o.guide ? plan : piece).add(l); strokes.push(l);
   return l;
 };
+const V = (x, y) => new THREE.Vector2(x, y);
 const C = toV(CONTORNO), E = toV(OJO);
-const jitter = (pts, s, r, dx, dy) => pts.map(p => new THREE.Vector2(p.x * s * Math.cos(r) - p.y * s * Math.sin(r) + dx, p.x * s * Math.sin(r) + p.y * s * Math.cos(r) + dy));
-const circle = (r, n = 160) => Array.from({ length: n + 1 }, (_, i) => new THREE.Vector2(Math.cos(i / n * Math.PI * 2 + 2.2) * r, Math.sin(i / n * Math.PI * 2 + 2.2) * r));
-// guías de construcción (muy suaves)
-stroke(circle(1.16), 0xcdbfb4, .55, 0, .45, false);
-stroke([new THREE.Vector2(-1.35, 0), new THREE.Vector2(1.35, 0)], 0xcdbfb4, .6, .05, .35, false);
-stroke([new THREE.Vector2(0, -1.25), new THREE.Vector2(0, 1.25)], 0xcdbfb4, .6, .1, .4, false);
-stroke([new THREE.Vector2(-1.3, -.29), new THREE.Vector2(.6, -.29)], 0xd6cac0, .5, .3, .55, false);
+const bb = C.reduce((b, p) => ({ x0: Math.min(b.x0, p.x), x1: Math.max(b.x1, p.x), y0: Math.min(b.y0, p.y), y1: Math.max(b.y1, p.y) }), { x0: 9, x1: -9, y0: 9, y1: -9 });
+const jitter = (pts, s, r, dx, dy) => pts.map(p => V(p.x * s * Math.cos(r) - p.y * s * Math.sin(r) + dx, p.x * s * Math.sin(r) + p.y * s * Math.cos(r) + dy));
+const circle = (r, n = 200) => Array.from({ length: n + 1 }, (_, i) => V(Math.cos(i / n * Math.PI * 2 + 2.2) * r, Math.sin(i / n * Math.PI * 2 + 2.2) * r));
+const GUIDE = 0xc9bcb1, o1 = { guide: true }, o2 = { guide: true, segs: true };
+// ejes y círculo de construcción
+stroke([V(-1.38, 0), V(1.38, 0)], GUIDE, .6, 0, .22, o1);
+stroke([V(0, 1.3), V(0, -1.3)], GUIDE, .6, .04, .26, o1);
+stroke(circle(1.16), GUIDE, .5, .08, .42, o1);
+// caja de la pieza: solo las esquinas, como marcas de corte
+{ const c = .09, g = .035, m = [];
+  for (const [x, sx] of [[bb.x0 - g, 1], [bb.x1 + g, -1]]) for (const [y, sy] of [[bb.y0 - g, 1], [bb.y1 + g, -1]])
+    m.push(V(x, y), V(x + c * sx, y), V(x, y), V(x, y + c * sy));
+  stroke(m, 0xb5a598, .7, .18, .4, o2); }
+// cotas: ancho abajo y alto a la derecha, con sus marcas a 45°
+{ const y = bb.y0 - .15, x = bb.x1 + .15, k = .022, e = .05;
+  stroke([V(bb.x0, y), V(bb.x1, y), V(bb.x0, y - e), V(bb.x0, y + e), V(bb.x1, y - e), V(bb.x1, y + e),
+    V(bb.x0 - k, y - k), V(bb.x0 + k, y + k), V(bb.x1 - k, y - k), V(bb.x1 + k, y + k)], 0xb5a598, .7, .26, .5, o2);
+  stroke([V(x, bb.y1), V(x, bb.y0), V(x - e, bb.y1), V(x + e, bb.y1), V(x - e, bb.y0), V(x + e, bb.y0),
+    V(x - k, bb.y1 - k), V(x + k, bb.y1 + k), V(x - k, bb.y0 - k), V(x + k, bb.y0 + k)], 0xb5a598, .7, .32, .56, o2); }
+// línea del corte (la ranura del 9)
+stroke([V(-1.3, -.29), V(.62, -.29)], GUIDE, .5, .3, .5, o1);
 // el 9: trazo principal y un segundo trazo levemente corrido, como a mano
-stroke(C, 0x5e4a3e, .95, .15, .85);
-stroke(jitter(C, 1.004, .004, .004, -.003), 0x8a7464, .45, .3, .95);
-stroke(E, 0x5e4a3e, .95, .7, .92);
-stroke(jitter(E, 1.02, -.01, .003, .002), 0x8a7464, .4, .78, 1);
-// vetas a lápiz dentro del 9: luego se vuelven la madera
+stroke(C, 0x4a3a30, 1, .2, .8, { loop: true });
+stroke(jitter(C, 1.003, .003, .003, -.002), 0x8a7464, .4, .34, .9, { loop: true });
+stroke(E, 0x4a3a30, 1, .68, .88, { loop: true });
+stroke(jitter(E, 1.018, -.008, .002, .002), 0x8a7464, .35, .76, .96, { loop: true });
+// vetas a lápiz dentro del 9: de ellas nace la madera
 const inside = (pt, poly) => { let c = false; for (let i = 0, j = poly.length - 1; i < poly.length; j = i++) {
   const a = poly[i], b = poly[j];
   if ((a.y > pt.y) !== (b.y > pt.y) && pt.x < (b.x - a.x) * (pt.y - a.y) / (b.y - a.y) + a.x) c = !c; } return c; };
-const grain = [];
-for (let k = 0; k < 11; k++) {
-  const x0 = -.86 + k * .17 + (r1() - .5) * .05, amp = .025 + r1() * .03, f = 2 + r1() * 2.5, ph = r1() * 6;
-  let prev = null;
-  for (let i = 0; i <= 90; i++) {
-    const y = .98 - i / 90 * 1.96;
-    const pt = new THREE.Vector2(x0 + y * .12 + Math.sin(y * f + ph) * amp + Math.sin(y * 11 + ph) * .006, y);
-    const ok = inside(pt, C) && !inside(pt, jitter(E, 1.15, 0, -.02, 0));
-    if (ok && prev) grain.push(prev, pt);
+const Ein = jitter(E, 1.15, 0, -.02, 0);
+GRAIN.forEach((gr, k) => {
+  const seg = []; let prev = null;
+  for (let i = 0; i <= 120; i++) {
+    const y = .99 - i / 120 * 1.98, pt = V(grainX(gr, y), y);
+    const ok = inside(pt, C) && !inside(pt, Ein);
+    if (ok && prev) seg.push(prev, pt);
     prev = ok ? pt : null;
   }
-}
-stroke(grain, 0xa08672, .5, .55, 1, false, true);
+  if (seg.length) stroke(seg, 0x9a7f6a, .55, .5 + k * .028, .78 + k * .02, { segs: true });
+});
 
 /* sombra de contacto */
 const shCanvas = document.createElement('canvas'); shCanvas.width = shCanvas.height = 128;
 { const g = shCanvas.getContext('2d'); const rg = g.createRadialGradient(64, 64, 0, 64, 64, 64);
-  rg.addColorStop(0, 'rgba(70,40,22,.6)'); rg.addColorStop(.55, 'rgba(70,40,22,.18)'); rg.addColorStop(1, 'rgba(70,40,22,0)');
+  rg.addColorStop(0, 'rgba(58,32,18,.62)'); rg.addColorStop(.22, 'rgba(58,32,18,.34)'); rg.addColorStop(.5, 'rgba(58,32,18,.12)'); rg.addColorStop(.78, 'rgba(58,32,18,.03)'); rg.addColorStop(1, 'rgba(58,32,18,0)');
   g.fillStyle = rg; g.fillRect(0, 0, 128, 128); }
-const shadow = new THREE.Mesh(new THREE.PlaneGeometry(2.3, .55), new THREE.MeshBasicMaterial({ map: new THREE.CanvasTexture(shCanvas), transparent: true, opacity: 0, depthWrite: false }));
-shadow.position.set(0, -1.22, 0);
+const shadow = new THREE.Mesh(new THREE.PlaneGeometry(2.5, .5), new THREE.MeshBasicMaterial({ map: new THREE.CanvasTexture(shCanvas), transparent: true, opacity: 0, depthWrite: false }));
+shadow.position.set(0, -1.2, 0);
 shadow.rotation.x = -Math.PI / 2.25;
 group.add(shadow);
 
@@ -199,10 +237,10 @@ addEventListener('resize', resize);
 resize();
 
 /* ───────── Interacción ───────── */
-const ptr = { x: 0, y: 0, tx: 0, ty: 0 };
+const ptr = { x: 0, y: 0, tx: 0, ty: 0, seen: 0 };
 const drag = { on: false, x0: 0, a: 0 };
 addEventListener('pointermove', e => {
-  if (e.pointerType === 'mouse') { ptr.tx = e.clientX / innerWidth * 2 - 1; ptr.ty = e.clientY / innerHeight * 2 - 1; }
+  if (e.pointerType === 'mouse') { ptr.tx = e.clientX / innerWidth * 2 - 1; ptr.ty = e.clientY / innerHeight * 2 - 1; ptr.seen = 1; }
   if (drag.on) { const dx = e.clientX - drag.x0; drag.x0 = e.clientX; drag.a += dx * .01; }
 }, { passive: true });
 canvas.addEventListener('pointerdown', e => { drag.on = true; drag.x0 = e.clientX; canvas.classList.add('is-grab'); });
@@ -248,33 +286,40 @@ function loop() {
   // 1) boceto a trazos finos (al cargar)
   const sk = sketch;
   for (const l of strokes) {
-    const { n, from, to, op } = l.userData;
+    const { n, from, to, segs } = l.userData;
     const k = eio(clamp((sk - from) / (to - from)));
-    l.geometry.setDrawRange(0, Math.max(0, Math.floor(n * k)));
+    const c = Math.floor(n * k);
+    l.geometry.setDrawRange(0, Math.max(0, segs ? c - c % 2 : c));
     l.visible = k > 0;
   }
-  // 2) la madera aparece poco a poco con el scroll; el lápiz se desvanece detrás
-  uReveal.value = REDUCED ? 1 : clamp(p / .6) * (2 - clamp(p / .6)) * .55 + clamp(p / .6) * .45;
-  const pencil = 1 - clamp((p - .42) / .28);
-  for (const l of strokes) l.material.opacity = l.userData.op * pencil;
+  // 2) con el scroll la madera nace de las vetas; el plano se retira primero y el lápiz después
+  const rv = clamp(p / .56);
+  uReveal.value = REDUCED ? 1 : rv * rv * (3 - 2 * rv) * .35 + rv * .65;
+  const guides = 1 - eio(clamp((p - .06) / .3)), pencil = 1 - eio(clamp((p - .34) / .26));
+  for (const l of strokes) l.material.opacity = l.userData.op * (l.userData.guide ? guides : pencil);
 
-  // 3) toma cuerpo: gana grosor y gira suave para mostrar el canto
-  const body = eio(clamp((p - .45) / .3));
-  nine.scale.z = .06 + .94 * body;
-  const turn = Math.sin(clamp((p - .45) / .55) * Math.PI);
-  piece.rotation.y = -.5 * turn - .1 * body;
-  piece.rotation.x = .08 * turn;
-  piece.position.y = Math.sin(t * .8) * .018 * body;
-  // reflejo que recorre la laca, más amplio cuando la pieza ya está armada
-  key.position.x = THREE.MathUtils.lerp(-4.5, -1.5, p) + Math.sin(t * .35) * (.4 + 1.6 * body);
-  key.position.y = THREE.MathUtils.lerp(4.5, 2.6, p);
-  shadow.material.opacity = .85 * clamp((p - .2) / .5);
+  // 3) toma cuerpo: gana grosor, gira para enseñar el canto y se queda en tres cuartos
+  const body = eio(clamp((p - .46) / .26));
+  nine.scale.z = .05 + .95 * body;
+  const a = clamp((p - .46) / .54), turn = Math.sin(a * Math.PI), rest = eio(a);
+  piece.rotation.y = -.42 * turn - .2 * rest;
+  piece.rotation.x = .07 * turn + .035 * rest;
+  piece.rotation.z = -.012 * rest;
+  piece.position.y = Math.sin(t * .8) * .016 * body;
+  piece.position.z = .05 * rest;
+  // reflejo que recorre el aceite de la madera, más amplio cuando la pieza ya está armada
+  key.position.x = THREE.MathUtils.lerp(-4.5, -1.8, p) + Math.sin(t * .35) * (.4 + 1.5 * body);
+  key.position.y = THREE.MathUtils.lerp(4.5, 2.8, p);
+  shadow.material.opacity = .9 * eio(clamp((p - .3) / .5));
+  shadow.scale.x = 1 - .1 * rest;
 
-  // mouse y arrastre (vuelve suave al soltar)
+  // mouse y arrastre (vuelve suave al soltar); una luz sigue al cursor sobre la madera
   ptr.x += (ptr.tx - ptr.x) * .06; ptr.y += (ptr.ty - ptr.y) * .06;
   if (!drag.on) drag.a *= .94;
-  group.rotation.y = ptr.x * .22 + drag.a;
-  group.rotation.x = ptr.y * .1;
+  group.rotation.y = ptr.x * .2 + drag.a;
+  group.rotation.x = ptr.y * .09;
+  glow.position.set(ptr.x * 3.2, -ptr.y * 2.2, 2.6);
+  glow.intensity = 5 * body * ptr.seen;
 
   renderer.render(scene, camera);
 }

@@ -160,6 +160,7 @@
   var lbImg = $('#lb-img'), lbVid = $('#lb-video'), lbCap = $('#lb-cap'), lbCount = $('#lb-count');
   var byF = {}; N.fotos.forEach(function (p) { byF[p.f] = p; });
   var list = [], idx = 0, lastFocus = null;
+  function stopVid() { lbVid.pause(); lbVid.hidden = true; if (lbVid.getAttribute('src')) { lbVid.removeAttribute('src'); lbVid.load(); } }
   function show(i) {
     idx = (i + list.length) % list.length;
     var it = list[idx];
@@ -167,7 +168,7 @@
       lbImg.hidden = true; lbVid.hidden = false; lbVid.src = 'img/casa/recorrido.mp4'; lbVid.play().catch(function () {});
       lbCap.textContent = lang === 'en' ? 'Walkthrough of the house' : 'Recorrido por la casa';
     } else {
-      lbVid.pause(); lbVid.hidden = true; lbImg.hidden = false;
+      stopVid(); lbImg.hidden = false;
       lbImg.src = 'img/casa/' + it.f + '.jpg'; lbImg.alt = it[lang];
       lbCap.textContent = it[lang];
     }
@@ -180,7 +181,7 @@
     lb.hidden = false; D.body.style.overflow = 'hidden';
     show(i || 0); $('#lb-x').focus();
   }
-  function close() { lb.hidden = true; lbVid.pause(); D.body.style.overflow = ''; if (lastFocus) lastFocus.focus(); }
+  function close() { lb.hidden = true; stopVid(); D.body.style.overflow = ''; if (lastFocus) lastFocus.focus(); }
   window.nueveOpen = function (f) { var i = N.fotos.map(function (p) { return p.f; }).indexOf(f); open(N.fotos, Math.max(0, i)); };
   D.addEventListener('click', function (e) {
     var s = e.target.closest('[data-set]');

@@ -232,6 +232,7 @@ section[id] { scroll-margin-top: 70px; }
 /* visor */
 #lb { position: fixed; inset: 0; z-index: 400; background: rgba(255, 255, 255, .97); display: grid; place-items: center; }
 #lb[hidden] { display: none; }
+.lb-fig [hidden] { display: none !important; }
 .lb-fig { display: grid; justify-items: center; gap: 12px; max-width: 88vw; }
 .lb-fig img, .lb-fig video { max-width: 88vw; max-height: 80vh; width: auto; border-radius: 3px; }
 #lb-cap { font-family: var(--f-t); font-size: 14px; color: var(--muted); letter-spacing: .04em; }
