@@ -1,7 +1,7 @@
 /* Casa Nueve — portada: el 9 de madera en 3D.
    La forma está trazada sobre la pieza real y la cara lleva su madera (foto de la pieza).
-   Al cargar se dibuja el boceto a trazos finos; con el scroll la madera sube poco a poco
-   con un frente limpio y suave, la pieza gana grosor y gira suave mientras una luz barre la madera.
+   Al cargar se dibuja el boceto a trazos finos; con el scroll el 9 se rellena en madera clara
+   y el aceite sube poco a poco con un frente limpio y suave, la pieza gana grosor y gira suave mientras una luz barre la madera.
    El mouse la inclina y se puede girar arrastrando. Three.js r160. */
 import * as THREE from 'three';
 import { RoomEnvironment } from 'three/addons/environments/RoomEnvironment.js';
@@ -77,7 +77,8 @@ const NG = 11;
 const GRAIN = Array.from({ length: NG }, (_, k) => new THREE.Vector4(-.86 + k * .17 + (r1() - .5) * .05, .014 + r1() * .02, 1.6 + r1() * 2, r1() * 6));
 const grainX = (g, y) => g.x + y * .12 + Math.sin(y * g.z + g.w) * g.y + Math.sin(y * 11 + g.w) * .004;
 
-/* La madera sube poco a poco por la pieza con un frente limpio y suave.
+/* El dibujo se rellena entero en madera clara y luego el aceite sube poco a poco
+   por la pieza con un frente limpio y suave.
    uReveal: 0 → nada, 1 → todo. */
 const uReveal = { value: REDUCED ? 1 : 0 };
 const revealize = (mat, isSide = false) => {
@@ -97,15 +98,21 @@ float fbm(vec2 p){ float a = .5, s = 0.; for (int i = 0; i < 4; i++) { s += a * 
   vec4 across = texture2D(map, q * vec2(.4524, .475) + vec2(.5, .4962) + vec2(.004, .002) * sin(vObjPos.z * 40.0));
   diffuseColor.rgb = across.rgb * mix(vec3(.74, .68, .64), vec3(1.0), smoothstep(.6, 1.0, abs(vObjN.z)));` : '') + `
   float lum = dot(diffuseColor.rgb, vec3(.3, .55, .15));
-  // La madera sube por la pieza con un frente limpio y sereno: una sola línea
-  // que ondula apenas, con el borde difuminado y un filo de aceite más oscuro.
+  // 1) el dibujo se rellena entero como madera clara, recién lijada
+  float born = smoothstep(0.0, .26, uReveal - (1.0 - q.y) * .03);
+  diffuseColor.a = born;
+  if (born < .004) discard;
+  // 2) el aceite sube por la pieza con un frente limpio y sereno: una sola línea
+  //    que ondula apenas, difuminada, con un filo más oscuro
   float front = (q.y + 1.0) * .5 * .84 + (q.x + 1.0) * .5 * .16;
   float wave = .022 * sin(q.x * 2.6 + 1.3) + .011 * sin(q.x * 6.1 + q.y * 1.7 + 4.0);
-  float m = uReveal * 1.16 - (front + wave) - .03;
-  if (m <= 0.0) discard;
-  diffuseColor.a = smoothstep(0.0, .05, m);
-  float stain = 1.0 - smoothstep(0.0, .16, m);
-  diffuseColor.rgb = mix(diffuseColor.rgb, diffuseColor.rgb * vec3(.6, .5, .43), stain * stain * .7);` + (isSide ? `
+  float m = (uReveal - .2) / .8 * 1.2 - (front + wave) - .03;
+  float oil = smoothstep(0.0, .07, m);
+  vec3 sanded = mix(vec3(dot(diffuseColor.rgb, vec3(.35, .5, .15))), diffuseColor.rgb, .55);
+  sanded = sanded * .55 + vec3(.6, .5, .4);
+  float stain = oil * (1.0 - smoothstep(0.0, .16, m));
+  vec3 oiled = mix(diffuseColor.rgb, diffuseColor.rgb * vec3(.6, .5, .43), stain * stain * .7);
+  diffuseColor.rgb = mix(sanded, oiled, oil);` + (isSide ? `
   // dentro del ojo y de la ranura sigue siendo la misma madera, algo más en sombra
   float inEye = (1.0 - smoothstep(.2, .26, abs(q.x - .147))) * (1.0 - smoothstep(.1, .14, abs(q.y - .345)));
   float inSlot = (1.0 - smoothstep(.24, .28, abs(q.x - .075))) * (1.0 - smoothstep(.09, .12, abs(q.y + .36)));
@@ -113,9 +120,10 @@ float fbm(vec2 p){ float a = .5, s = 0.; for (int i = 0; i < 4; i++) { s += a * 
   diffuseColor.rgb *= 1.0 - .3 * raw;` : `
   // poro fino de la madera, para que de cerca siga siendo nítida
   float pore = vn(q * vec2(150.0, 11.0) + vec2(q.y * 18.0, 0.0));
-  diffuseColor.rgb *= 1.0 - .07 * smoothstep(.55, .95, pore);`)).replace('#include <roughnessmap_fragment>', '#include <roughnessmap_fragment>' + (isSide ? `` : `
+  diffuseColor.rgb *= 1.0 - .07 * smoothstep(.55, .95, pore);`)).replace('#include <lights_physical_fragment>', '#include <lights_physical_fragment>\n  material.clearcoat *= oil;').replace('#include <roughnessmap_fragment>', '#include <roughnessmap_fragment>' + (isSide ? `` : `
   // la veta oscura bebe más aceite: brilla menos que la clara
-  roughnessFactor = clamp(roughnessFactor + (.2 - lum) * .5, .28, .8);`));
+  roughnessFactor = clamp(roughnessFactor + (.2 - lum) * .5, .28, .8);`) + `
+  roughnessFactor = mix(.92, roughnessFactor, oil);`);
   };
   return mat;
 };
