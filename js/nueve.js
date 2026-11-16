@@ -136,7 +136,7 @@ const front = revealize(new THREE.MeshPhysicalMaterial({
   roughness: .5, clearcoat: .32, clearcoatRoughness: .22,
 }));
 const side = revealize(new THREE.MeshPhysicalMaterial({
-  map: woodMap, roughness: .56, clearcoat: .22, clearcoatRoughness: .3,
+  map: woodMap, roughness: .56, clearcoat: .22, clearcoatRoughness: .3, side: THREE.DoubleSide,
 }), true);
 const nine = new THREE.Mesh(geo, [front, side]);
 nine.scale.z = .05;
