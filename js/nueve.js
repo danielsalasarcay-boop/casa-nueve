@@ -1,7 +1,7 @@
 /* Casa Nueve — portada: el 9 de madera en 3D.
    La forma está trazada sobre la pieza real y la cara lleva su madera (foto de la pieza).
-   Al cargar se dibuja el boceto a trazos finos; con el scroll la madera aparece poco a poco
-   subiendo por la veta, la pieza gana grosor y gira suave mientras una luz barre la madera.
+   Al cargar se dibuja el boceto a trazos finos; con el scroll la madera sube poco a poco
+   con un frente limpio y suave, la pieza gana grosor y gira suave mientras una luz barre la madera.
    El mouse la inclina y se puede girar arrastrando. Three.js r160. */
 import * as THREE from 'three';
 import { RoomEnvironment } from 'three/addons/environments/RoomEnvironment.js';
@@ -77,18 +77,15 @@ const NG = 11;
 const GRAIN = Array.from({ length: NG }, (_, k) => new THREE.Vector4(-.86 + k * .17 + (r1() - .5) * .05, .014 + r1() * .02, 1.6 + r1() * 2, r1() * 6));
 const grainX = (g, y) => g.x + y * .12 + Math.sin(y * g.z + g.w) * g.y + Math.sin(y * 11 + g.w) * .004;
 
-/* La madera nace de cada veta dibujada y se va abriendo hacia los lados hasta
-   cubrir la pieza, con un borde más oscuro como aceite recién pasado.
+/* La madera sube poco a poco por la pieza con un frente limpio y suave.
    uReveal: 0 → nada, 1 → todo. */
 const uReveal = { value: REDUCED ? 1 : 0 };
-const uGrain = { value: GRAIN };
 const revealize = (mat, isSide = false) => {
-  mat.alphaToCoverage = true;
+  mat.transparent = true;
   mat.onBeforeCompile = sh => {
     sh.uniforms.uReveal = uReveal;
-    sh.uniforms.uGrain = uGrain;
     sh.vertexShader = 'varying vec3 vObjPos; varying vec3 vObjN;\n' + sh.vertexShader.replace('#include <begin_vertex>', '#include <begin_vertex>\n vObjPos = position; vObjN = normal;');
-    sh.fragmentShader = `uniform float uReveal; uniform vec4 uGrain[${NG}]; varying vec3 vObjPos; varying vec3 vObjN;
+    sh.fragmentShader = `uniform float uReveal; varying vec3 vObjPos; varying vec3 vObjN;
 float h21(vec2 p){ return fract(sin(dot(p, vec2(127.1, 311.7))) * 43758.5453); }
 float vn(vec2 p){ vec2 i = floor(p), f = fract(p); f = f * f * (3. - 2. * f);
   return mix(mix(h21(i), h21(i + vec2(1, 0)), f.x), mix(h21(i + vec2(0, 1)), h21(i + vec2(1, 1)), f.x), f.y); }
@@ -100,18 +97,15 @@ float fbm(vec2 p){ float a = .5, s = 0.; for (int i = 0; i < 4; i++) { s += a * 
   vec4 across = texture2D(map, q * vec2(.4524, .475) + vec2(.5, .4962) + vec2(.004, .002) * sin(vObjPos.z * 40.0));
   diffuseColor.rgb = across.rgb * mix(vec3(.74, .68, .64), vec3(1.0), smoothstep(.6, 1.0, abs(vObjN.z)));` : '') + `
   float lum = dot(diffuseColor.rgb, vec3(.3, .55, .15));
-  float gd = 9.0;
-  for (int i = 0; i < ${NG}; i++) { vec4 g = uGrain[i];
-    float d = abs(q.x - (g.x + q.y * .12 + sin(q.y * g.z + g.w) * g.y + sin(q.y * 11.0 + g.w) * .004));
-    // cada veta arranca a su tiempo y se abre a su ritmo: pinceladas, no barras
-    gd = min(gd, smoothstep(0.0, .1 + .05 * fract(g.w * 3.3), d) * .34 + fract(g.w * 1.7) * .2); }
-  float T = gd + (1.0 - q.y) * .5 * .5
-    + (fbm(q * vec2(9.0, 1.3) + 3.7) - .5) * .12` + (isSide ? '' : ` + (.22 - lum) * .12`) + `;
-  float m = uReveal * 1.36 - T - .05;
-  if (m < 0.0) discard;
-  diffuseColor.a = smoothstep(0.0, max(fwidth(m) * 1.6, 1e-4), m);
-  float stain = 1.0 - smoothstep(0.0, .07, m);
-  diffuseColor.rgb = mix(diffuseColor.rgb, diffuseColor.rgb * vec3(.5, .38, .3), stain * .8);` + (isSide ? `
+  // La madera sube por la pieza con un frente limpio y sereno: una sola línea
+  // que ondula apenas, con el borde difuminado y un filo de aceite más oscuro.
+  float front = (q.y + 1.0) * .5 * .84 + (q.x + 1.0) * .5 * .16;
+  float wave = .022 * sin(q.x * 2.6 + 1.3) + .011 * sin(q.x * 6.1 + q.y * 1.7 + 4.0);
+  float m = uReveal * 1.16 - (front + wave) - .03;
+  if (m <= 0.0) discard;
+  diffuseColor.a = smoothstep(0.0, .05, m);
+  float stain = 1.0 - smoothstep(0.0, .16, m);
+  diffuseColor.rgb = mix(diffuseColor.rgb, diffuseColor.rgb * vec3(.6, .5, .43), stain * stain * .7);` + (isSide ? `
   // dentro del ojo y de la ranura sigue siendo la misma madera, algo más en sombra
   float inEye = (1.0 - smoothstep(.2, .26, abs(q.x - .147))) * (1.0 - smoothstep(.1, .14, abs(q.y - .345)));
   float inSlot = (1.0 - smoothstep(.24, .28, abs(q.x - .075))) * (1.0 - smoothstep(.09, .12, abs(q.y + .36)));
